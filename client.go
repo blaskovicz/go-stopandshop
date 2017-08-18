@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/blaskovicz/go-stopandshop/models"
@@ -57,68 +58,63 @@ func (c *Client) assertToken() error {
 	return nil
 }
 
-// TODO common c.call function
-func (c *Client) ReadCoupons(cardNumber string) ([]models.Coupon, error) {
-	if err := c.assertToken(); err != nil {
-		return nil, err
+func (c *Client) do(req *http.Request, decodeTarget interface{}) error {
+	if decodeTarget != nil {
+		if decodeKind := reflect.TypeOf(decodeTarget).Kind(); decodeKind != reflect.Ptr {
+			return fmt.Errorf("invalid decode target type %s (need %s)", decodeKind.String(), reflect.Ptr.String())
+		}
 	}
+	if err := c.assertToken(); err != nil {
+		return err
+	} else {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.token.AccessToken))
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %s", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		if decodeTarget != nil {
+			err = json.NewDecoder(resp.Body).Decode(decodeTarget)
+			if err != nil {
+				return fmt.Errorf("failed to decode payload: %s", err)
+			}
+		}
+		return nil
+	}
+
+	var e models.ErrorResponse
+	err = json.NewDecoder(resp.Body).Decode(&e)
+	if err != nil {
+		// TODO print payload substring here
+		return fmt.Errorf("failed to decode error payload: %s", err)
+	}
+	return fmt.Errorf("request failed: %s", e.Description)
+}
+func (c *Client) ReadCoupons(cardNumber string) ([]models.Coupon, error) {
 	req, err := http.NewRequest("GET", c.uri(fmt.Sprintf("/auth/api/private/synergy/coupons/offers/%s?pageIndex=0&numRecords=2000&categories&brands", cardNumber)), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %s", err)
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.token.AccessToken))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %s", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		var o models.OfferResponse
-		err = json.NewDecoder(resp.Body).Decode(&o)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode coupons: %s", err)
-		}
-		return o.Offers, nil
-	} else {
-		var e models.ErrorResponse
-		err = json.NewDecoder(resp.Body).Decode(&e)
-		if err != nil {
-			// TODO print payload substring here
-			return nil, fmt.Errorf("failed to decode error payload: %s", err)
-		}
-		return nil, fmt.Errorf("coupon fetch failed: %s", e.Description)
-	}
-}
-func (c *Client) ReadProfile() (*models.Profile, error) {
-	if err := c.assertToken(); err != nil {
+	var o models.OfferResponse
+	if err = c.do(req, &o); err != nil {
 		return nil, err
 	}
+	return o.Offers, nil
+}
+func (c *Client) ReadProfile() (*models.Profile, error) {
 	// TODO figure out what /auth/profile (since it doesnt have card num)
 	req, err := http.NewRequest("GET", c.uri("/auth/profile/SNS"), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %s", err)
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.token.AccessToken))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %s", err)
+	var p models.Profile
+	if err = c.do(req, &p); err != nil {
+		return nil, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		var p models.Profile
-		err = json.NewDecoder(resp.Body).Decode(&p)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode profile: %s", err)
-		}
-		return &p, nil
-	} else {
-		var e models.ErrorResponse
-		err = json.NewDecoder(resp.Body).Decode(&e)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode error payload: %s", err)
-		}
-		return nil, fmt.Errorf("profile fetch failed: %s", e.Description)
-	}
+	return &p, nil
 }
 
 // on stop-and-shop web, the flow is:
