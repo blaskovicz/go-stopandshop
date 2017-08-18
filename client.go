@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/blaskovicz/go-stopandshop/models"
 )
 
 const (
@@ -24,67 +26,7 @@ type Client struct {
 	rootURI   string
 	tokenAuth string // for client_credentials grant; base64-encoded oauth client_id:<somepass>
 	clientID  string // for oauth
-	token     *Token
-}
-
-type errorResponse struct {
-	ID          string `json:"error"`             // eg: unauthorized
-	Description string `json:"error_description"` // eg: "full auth required to access this resource"
-}
-type offerResponse struct {
-	CardNumber string   `json:"cardNumber"`
-	Offers     []Coupon `json:"offers"`
-	//Facets     map[string]struct{} `json:"facets"`
-}
-
-/*
-{
-    "id" : "0a06f213-298d-47cc-9260-99fc4450c0a4",
-    "name" : "Fortify™",
-    "description" : "On any Fortify™ 50 Billion Formula",
-    "startDate" : "2017-07-10",
-    "expirationDate" : "2017-08-31",
-    "url" : "http://cdn.cpnscdn.com/static.coupons.com/ext/bussys/cpa/pod/94/267/494267_3638a9fc-c4b8-49b1-aa37-f2e1b0dab086.gif",
-    "loaded" : false,
-    "title" : "Save $4.00",
-    "price" : 4.00,
-    "couponSource" : "OMS",
-    "couponCategory" : "Health & Wellness",
-    "priceQualifier" : "0",
-    "source" : "COUPONS"
-}
-*/
-type Coupon struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	Description    string  `json:"description"`
-	StartDate      string  `json:"startDate"`
-	EndDate        string  `json:"expirationDate"`
-	URL            string  `json:"url"`
-	Loaded         bool    `json:"loaded"`
-	LegalText      string  `json:"legalText"`
-	Title          string  `json:"title"`
-	Price          float32 `json:"price"`
-	CouponSource   string  `json:"couponSource"`
-	CouponCategory string  `json:"couponCategory"`
-	PriceQualifier string  `json:"priceQualifier"`
-	Source         string  `json:"source"`
-}
-type Profile struct {
-	// there's also a couple duplicate fields like cardNumber and firstName...
-	CardNumber     string `json:"card_number"`
-	FirstName      string `json:"first_name"`
-	ID             string `json:"id"`
-	Login          string `json:"login"`
-	PreferredStore string `json:"preferred_store"`
-	StoreNumber    string `json:"storeNumber"`
-}
-type Token struct {
-	AccessToken  string  `json:"access_token"`
-	RefreshToken *string `json:"refresh_token"`
-	ExpiresIn    *int    `json:"expires_in"`
-	TokenType    string  `json:"token_type"`
-	Scope        string  `json:"scope"`
+	token     *models.Token
 }
 
 func New() *Client {
@@ -96,7 +38,11 @@ func New() *Client {
 	if clientID == "" {
 		clientID = DefaultClientID
 	}
-	return &Client{rootURI: DefaultRootURI, tokenAuth: tokenAuth, clientID: clientID}
+	rootURI := os.Getenv("STOP_AND_SHOP_ROOT_URI")
+	if rootURI == "" {
+		rootURI = DefaultRootURI
+	}
+	return &Client{rootURI: rootURI, tokenAuth: tokenAuth, clientID: clientID}
 }
 
 func (c *Client) uri(path string) string {
@@ -112,7 +58,7 @@ func (c *Client) assertToken() error {
 }
 
 // TODO common c.call function
-func (c *Client) ReadCoupons(cardNumber string) ([]Coupon, error) {
+func (c *Client) ReadCoupons(cardNumber string) ([]models.Coupon, error) {
 	if err := c.assertToken(); err != nil {
 		return nil, err
 	}
@@ -127,14 +73,14 @@ func (c *Client) ReadCoupons(cardNumber string) ([]Coupon, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
-		var o offerResponse
+		var o models.OfferResponse
 		err = json.NewDecoder(resp.Body).Decode(&o)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode coupons: %s", err)
 		}
 		return o.Offers, nil
 	} else {
-		var e errorResponse
+		var e models.ErrorResponse
 		err = json.NewDecoder(resp.Body).Decode(&e)
 		if err != nil {
 			// TODO print payload substring here
@@ -143,7 +89,7 @@ func (c *Client) ReadCoupons(cardNumber string) ([]Coupon, error) {
 		return nil, fmt.Errorf("coupon fetch failed: %s", e.Description)
 	}
 }
-func (c *Client) ReadProfile() (*Profile, error) {
+func (c *Client) ReadProfile() (*models.Profile, error) {
 	if err := c.assertToken(); err != nil {
 		return nil, err
 	}
@@ -159,14 +105,14 @@ func (c *Client) ReadProfile() (*Profile, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
-		var p Profile
+		var p models.Profile
 		err = json.NewDecoder(resp.Body).Decode(&p)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode profile: %s", err)
 		}
 		return &p, nil
 	} else {
-		var e errorResponse
+		var e models.ErrorResponse
 		err = json.NewDecoder(resp.Body).Decode(&e)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode error payload: %s", err)
@@ -201,14 +147,14 @@ func (c *Client) Login(username, password string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
-		var t Token
+		var t models.Token
 		err = json.NewDecoder(resp.Body).Decode(&t)
 		if err != nil {
 			return fmt.Errorf("failed to decode token: %s", err)
 		}
 		c.token = &t
 	} else {
-		var e errorResponse
+		var e models.ErrorResponse
 		err = json.NewDecoder(resp.Body).Decode(&e)
 		if err != nil {
 			return fmt.Errorf("failed to decode error payload: %s", err)
