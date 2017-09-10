@@ -30,7 +30,7 @@ if err != nil {
 }
 
 // with the profile info, we can then check for coupons!
-coupons, err := cilent.ReadCoupons(profile.CardNumber)
+coupons, err := client.ReadCoupons(profile.CardNumber)
 if err != nil {
   panic(err)
 }
