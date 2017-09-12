@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -86,13 +87,19 @@ func (c *Client) do(req *http.Request, decodeTarget interface{}) error {
 		return nil
 	}
 
-	var e models.ErrorResponse
-	err = json.NewDecoder(resp.Body).Decode(&e)
+	rawBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		// TODO print payload substring here
-		return fmt.Errorf("failed to decode error payload: %s", err)
+		return fmt.Errorf("failed to read %s response payload: %s", resp.Status, err)
 	}
-	return fmt.Errorf("request failed: %s", e.Description)
+	if rawBody != nil && len(rawBody) != 0 {
+		var e models.ErrorResponse
+		if err = json.Unmarshal(rawBody, &e); err != nil {
+			return fmt.Errorf("failed to decode %s error payload (%s): %s", resp.Status, string(rawBody), err)
+		}
+		return fmt.Errorf("request failed with %s: %s", resp.Status, e.Description)
+	} else {
+		return fmt.Errorf("request failed with %s: %s", resp.Status, string(rawBody))
+	}
 }
 func (c *Client) ReadCoupons(cardNumber string) ([]models.Coupon, error) {
 	req, err := http.NewRequest("GET", c.uri(fmt.Sprintf("/auth/api/private/synergy/coupons/offers/%s?pageIndex=0&numRecords=2000&categories&brands", cardNumber)), nil)
@@ -170,6 +177,7 @@ func (c *Client) LoadCoupon(cardNumber, couponID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %s", err)
 	}
+	req.Header.Set("Content-Type", "application/json")
 	// TODO: unmarshal and check?
 	// { "code" : "0", "description" : "Success: Customer 0660000000025140934 opted into customer group 487134." }
 	if err = c.do(req, nil); err != nil {
