@@ -49,4 +49,16 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "Fortify™", c.Name, "name mistmatch")
 		assert.Equal(t, "On any Fortify™ 50 Billion Formula", c.Description, "description mismatch")
 	})
+	t.Run("LoadCouponToProfile", func(t *testing.T) {
+		require.NotNil(t, client)
+		require.NotNil(t, profile)
+		err := client.LoadCoupon(profile.CardNumber, "0a06f213-298d-47cc-9260-99fc4450c0a4")
+		require.NoError(t, err, "load coupon failed")
+
+		err = client.LoadCoupon(profile.CardNumber, "0a06f213-298d-47cc-9260-99fc4450c0a4")
+		require.NoError(t, err, "load coupon failed")
+
+		err = client.LoadCoupon(profile.CardNumber, "")
+		require.Error(t, err, "load coupon failed")
+	})
 }

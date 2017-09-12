@@ -37,6 +37,16 @@ if err != nil {
 
 fmt.Printf("Found %d coupons, maybe some free items?\n", len(coupons))
 
+// and even load coupons to our card
+for _, coupon := range coupons {
+  if coupon.Loaded {
+    continue
+  }
+  if err = client.LoadCoupon(profile.CardNumber, coupon.ID); err != nil {
+    panic(err)
+  }
+}
+
 // more to come, including using refresh token.
 ```
 

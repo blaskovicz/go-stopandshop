@@ -26,6 +26,11 @@ type Coupon struct {
 	PriceQualifier string  `json:"priceQualifier"`
 	Source         string  `json:"source"`
 }
+
+// for uploads
+type CouponPayload struct {
+	CouponID string `json:"offerNumber"`
+}
 type Profile struct {
 	// there's also a couple duplicate fields like cardNumber and firstName...
 	CardNumber     string `json:"card_number"`

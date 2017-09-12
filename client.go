@@ -1,6 +1,7 @@
 package stopandshop
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -156,6 +157,23 @@ func (c *Client) Login(username, password string) error {
 			return fmt.Errorf("failed to decode error payload: %s", err)
 		}
 		return fmt.Errorf("login failed: %s", e.Description)
+	}
+	return nil
+}
+
+func (c *Client) LoadCoupon(cardNumber, couponID string) error {
+	wrappedCoupon, err := json.Marshal(models.CouponPayload{couponID})
+	if err != nil {
+		return fmt.Errorf("failed to encode coupon %s: %s", couponID, err)
+	}
+	req, err := http.NewRequest("PUT", c.uri(fmt.Sprintf("/auth/api/private/synergy/coupons/offers/%s", cardNumber)), bytes.NewReader(wrappedCoupon))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %s", err)
+	}
+	// TODO: unmarshal and check?
+	// { "code" : "0", "description" : "Success: Customer 0660000000025140934 opted into customer group 487134." }
+	if err = c.do(req, nil); err != nil {
+		return err
 	}
 	return nil
 }

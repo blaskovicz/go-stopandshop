@@ -11,7 +11,8 @@ import (
 )
 
 type StopAndShopAPI struct {
-	server *httptest.Server
+	server        *httptest.Server
+	offersApplied map[string]interface{}
 }
 
 func stopAndShopMux(s *StopAndShopAPI) *http.ServeMux {
@@ -23,7 +24,7 @@ func stopAndShopMux(s *StopAndShopAPI) *http.ServeMux {
 }
 
 func NewStopAndShopAPI() *StopAndShopAPI {
-	s := &StopAndShopAPI{}
+	s := &StopAndShopAPI{offersApplied: map[string]interface{}{}}
 	s.server = httptest.NewServer(stopAndShopMux(s))
 	return s
 }
@@ -52,7 +53,7 @@ func writeError(w http.ResponseWriter, code int, e *models.ErrorResponse) {
 	}
 }
 func (s *StopAndShopAPI) handleOffers(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
+	if req.Method != "GET" && req.Method != "PUT" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	} else if !hasBearerToken(w, req) {
@@ -60,6 +61,26 @@ func (s *StopAndShopAPI) handleOffers(w http.ResponseWriter, req *http.Request) 
 	} else if !strings.HasSuffix(req.URL.Path, "/12345") {
 		w.WriteHeader(http.StatusNotFound) // for credit card
 	}
+	if req.Method == "GET" {
+		s.handleGetOffers(w, req)
+	} else if req.Method == "PUT" {
+		s.handlePutOffers(w, req)
+	}
+}
+func (s *StopAndShopAPI) handlePutOffers(w http.ResponseWriter, req *http.Request) {
+	var c models.CouponPayload
+	if err := json.NewDecoder(req.Body).Decode(&c); err != nil || (err == nil && c.CouponID == "") {
+		w.WriteHeader(400)
+		w.Write([]byte(`{"exception":"org.springframework.web.client.HttpClientErrorException: 400 Bad Request","url":"https://stopandshop.com/auth/api/private/synergy/coupons/offers/12345","timestamp":"2017-09-11T21:15:39.967","status":400}`))
+		return
+	}
+	if _, wasApplied := s.offersApplied[c.CouponID]; !wasApplied {
+		s.offersApplied[c.CouponID] = struct{}{}
+		w.Write([]byte(`{ "code" : "0", "description" : "Success: Customer 0660000000012 opted into customer group 44." }`))
+	}
+	// empty body otherwise
+}
+func (s *StopAndShopAPI) handleGetOffers(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(`{
 		"cardNumber": "12345",
 		"offers": [
