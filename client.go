@@ -53,8 +53,8 @@ func (c *Client) GetRootURI() string                    { return c.rootURI }
 func (c *Client) SetRootURI(rootURI string) *Client     { c.rootURI = rootURI; return c }
 func (c *Client) GetTokenAuth() string                  { return c.tokenAuth }
 func (c *Client) SetTokenAuth(tokenAuth string) *Client { c.tokenAuth = tokenAuth; return c }
-func (c *Client) GetToken() *models.Token                  { return c.token }
-func (c *Client) SetToken(token *models.Token) *Client { c.token = token; return c }
+func (c *Client) GetToken() *models.Token               { return c.token }
+func (c *Client) SetToken(token *models.Token) *Client  { c.token = token; return c }
 func (c *Client) GetClientID() string                   { return c.clientID }
 func (c *Client) SetClientID(clientID string) *Client   { c.clientID = clientID; return c }
 
@@ -112,6 +112,57 @@ func (c *Client) do(req *http.Request, decodeTarget interface{}) error {
 	}
 }
 func (c *Client) ReadCoupons(cardNumber string) ([]models.Coupon, error) {
+	// note that there are two routes, they have different data, but the same coupon struct
+	coupons := []models.Coupon{}
+	results := make(chan interface{}, 2)
+	go func() {
+		coupons, err := c.readLoadedCoupons(cardNumber)
+		if err != nil {
+			results <- err
+		} else {
+			results <- coupons
+		}
+	}()
+	go func() {
+		coupons, err := c.readUnloadedCoupons(cardNumber)
+		if err != nil {
+			results <- err
+		} else {
+			results <- coupons
+		}
+	}()
+
+	result1 := <-results
+	if err, ok := result1.(error); ok {
+		return nil, err
+	}
+	c1 := result1.([]models.Coupon)
+	result2 := <-results
+	if err, ok := result2.(error); ok {
+		return nil, err
+	}
+	c2 := result2.([]models.Coupon)
+
+	for i, _ := range c1 {
+		coupons = append(coupons, c1[i])
+	}
+	for i, _ := range c2 {
+		coupons = append(coupons, c2[i])
+	}
+	return coupons, nil
+}
+func (c *Client) readLoadedCoupons(cardNumber string) ([]models.Coupon, error) {
+	req, err := http.NewRequest("GET", c.uri(fmt.Sprintf("/auth/api/private/synergy/offers/combined/%s?pageIndex=0&numRecords=2000&categories&brands&loaded=true", cardNumber)), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %s", err)
+	}
+	var o models.OfferResponse
+	if err = c.do(req, &o); err != nil {
+		return nil, err
+	}
+	return o.Offers, nil
+}
+func (c *Client) readUnloadedCoupons(cardNumber string) ([]models.Coupon, error) {
 	req, err := http.NewRequest("GET", c.uri(fmt.Sprintf("/auth/api/private/synergy/coupons/offers/%s?pageIndex=0&numRecords=2000&categories&brands", cardNumber)), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %s", err)

@@ -19,6 +19,7 @@ func stopAndShopMux(s *StopAndShopAPI) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/oauth/token", s.handleLogin)
 	mux.HandleFunc("/auth/profile/SNS", s.handleProfile)
+	mux.HandleFunc("/auth/api/private/synergy/offers/combined/", s.handleOffersCombined)
 	mux.HandleFunc("/auth/api/private/synergy/coupons/offers/", s.handleOffers)
 	return mux
 }
@@ -79,6 +80,37 @@ func (s *StopAndShopAPI) handlePutOffers(w http.ResponseWriter, req *http.Reques
 		w.Write([]byte(`{ "code" : "0", "description" : "Success: Customer 0660000000012 opted into customer group 44." }`))
 	}
 	// empty body otherwise
+}
+func (s *StopAndShopAPI) handleOffersCombined(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	} else if !hasBearerToken(w, req) {
+		return
+	} else if !strings.HasSuffix(req.URL.Path, "/12345") {
+		w.WriteHeader(http.StatusNotFound) // for credit card
+	}
+	w.Write([]byte(`{
+		"cardNumber": "12345",
+		"offers": [
+			{
+				"id" : "2b9f19ca-7655-499a-8284-491c039068b4",
+				"name" : "Duncan Hines®",
+				"description" : "Duncan Hines® Perfect Size for 1® Cake Mix (Max. Value $3.49)",
+				"startDate" : "2017-09-28",
+				"expirationDate" : "2017-10-12",
+				"url" : "http://cdn.cpnscdn.com/static.coupons.com/ext/bussys/cpa/pod/16/889/516889_b8390a41-e701-443b-8dac-80b44cbcb7b1.gif",
+				"loaded" : true,
+				"legalText": "text here",
+				"title" : "FREE",
+				"price" : 3.49,
+				"couponSource" : "AUSA FREE",
+				"couponCategory" : "Bakery",
+				"priceQualifier" : "0",
+				"source" : "COUPONS"
+			}
+		]
+	}`))
 }
 func (s *StopAndShopAPI) handleGetOffers(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(`{
