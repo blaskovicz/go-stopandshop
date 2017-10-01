@@ -45,8 +45,16 @@ func New() *Client {
 	if rootURI == "" {
 		rootURI = DefaultRootURI
 	}
-	return &Client{rootURI: rootURI, tokenAuth: tokenAuth, clientID: clientID}
+	c := &Client{}
+	return c.SetRootURI(rootURI).SetTokenAuth(tokenAuth).SetClientID(clientID)
 }
+
+func (c *Client) GetRootURI() string                    { return c.rootURI }
+func (c *Client) SetRootURI(rootURI string) *Client     { c.rootURI = rootURI; return c }
+func (c *Client) GetTokenAuth() string                  { return c.tokenAuth }
+func (c *Client) SetTokenAuth(tokenAuth string) *Client { c.tokenAuth = tokenAuth; return c }
+func (c *Client) GetClientID() string                   { return c.clientID }
+func (c *Client) SetClientID(clientID string) *Client   { c.clientID = clientID; return c }
 
 func (c *Client) uri(path string) string {
 	return fmt.Sprintf("%s%s", c.rootURI, path)

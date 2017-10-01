@@ -1,7 +1,6 @@
 package stopandshop
 
 import (
-	"os"
 	"testing"
 
 	"github.com/blaskovicz/go-stopandshop/mocks"
@@ -13,7 +12,6 @@ import (
 func TestClient(t *testing.T) {
 	s := mocks.NewStopAndShopAPI()
 	defer s.Close()
-	os.Setenv("STOP_AND_SHOP_ROOT_URI", s.URL())
 	username := "testuser"
 	password := "testpass"
 	var err error
@@ -21,6 +19,7 @@ func TestClient(t *testing.T) {
 	var profile *models.Profile
 	t.Run("Init", func(t *testing.T) {
 		client = New()
+		client.SetRootURI(s.URL())
 		require.NotNil(t, client, "client was nil")
 	})
 	t.Run("Login", func(t *testing.T) {
