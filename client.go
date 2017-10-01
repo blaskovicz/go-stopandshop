@@ -53,6 +53,8 @@ func (c *Client) GetRootURI() string                    { return c.rootURI }
 func (c *Client) SetRootURI(rootURI string) *Client     { c.rootURI = rootURI; return c }
 func (c *Client) GetTokenAuth() string                  { return c.tokenAuth }
 func (c *Client) SetTokenAuth(tokenAuth string) *Client { c.tokenAuth = tokenAuth; return c }
+func (c *Client) GetToken() *models.Token                  { return c.token }
+func (c *Client) SetToken(token *models.Token) *Client { c.token = token; return c }
 func (c *Client) GetClientID() string                   { return c.clientID }
 func (c *Client) SetClientID(clientID string) *Client   { c.clientID = clientID; return c }
 
