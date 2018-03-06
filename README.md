@@ -47,7 +47,14 @@ for _, coupon := range coupons {
   }
 }
 
-// more to come, including using refresh token.
+// if any of the previous calls returned an error, we may need to refresh
+// our access token:
+if IsAccessTokenExpired(err) {
+  err = client.RefreshAccessToken()
+  if err != nil {
+    panic(err)
+  }
+}
 ```
 
 ## Test

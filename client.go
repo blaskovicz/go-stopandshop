@@ -49,13 +49,13 @@ func New() *Client {
 	return c.SetRootURI(rootURI).SetTokenAuth(tokenAuth).SetClientID(clientID)
 }
 
-func (c *Client) GetRootURI() string                    { return c.rootURI }
+func (c *Client) RootURI() string                       { return c.rootURI }
 func (c *Client) SetRootURI(rootURI string) *Client     { c.rootURI = rootURI; return c }
-func (c *Client) GetTokenAuth() string                  { return c.tokenAuth }
+func (c *Client) TokenAuth() string                     { return c.tokenAuth }
 func (c *Client) SetTokenAuth(tokenAuth string) *Client { c.tokenAuth = tokenAuth; return c }
-func (c *Client) GetToken() *models.Token               { return c.token }
+func (c *Client) Token() *models.Token                  { return c.token }
 func (c *Client) SetToken(token *models.Token) *Client  { c.token = token; return c }
-func (c *Client) GetClientID() string                   { return c.clientID }
+func (c *Client) ClientID() string                      { return c.clientID }
 func (c *Client) SetClientID(clientID string) *Client   { c.clientID = clientID; return c }
 
 func (c *Client) uri(path string) string {
@@ -218,15 +218,51 @@ func (c *Client) Login(username, password string) error {
 			return fmt.Errorf("failed to decode token: %s", err)
 		}
 		c.token = &t
-	} else {
-		var e models.ErrorResponse
-		err = json.NewDecoder(resp.Body).Decode(&e)
-		if err != nil {
-			return fmt.Errorf("failed to decode error payload: %s", err)
-		}
-		return fmt.Errorf("login failed: %s", e.Description)
+		return nil
 	}
-	return nil
+	var e models.ErrorResponse
+	err = json.NewDecoder(resp.Body).Decode(&e)
+	if err != nil {
+		return fmt.Errorf("failed to decode error payload: %s", err)
+	}
+	return fmt.Errorf("login failed: %s", e.Description)
+}
+
+/* RefreshAccessToken: using the loaded refresh token, generate and set a new access token */
+func (c *Client) RefreshAccessToken() error {
+	if c.token == nil || c.token.RefreshToken == nil {
+		return fmt.Errorf("cannot refresh access token: missing refresh token")
+	}
+	payload := url.Values{
+		"refresh_token": []string{*c.token.RefreshToken},
+		"grant_type":    []string{"refresh_token"},
+	}
+	req, err := http.NewRequest("POST", c.uri("/auth/oauth/token"), strings.NewReader(payload.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %s", err)
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Authorization", fmt.Sprintf("Basic %s", c.tokenAuth))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %s", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		var t models.Token
+		err = json.NewDecoder(resp.Body).Decode(&t)
+		if err != nil {
+			return fmt.Errorf("failed to decode token: %s", err)
+		}
+		c.token = &t
+		return nil
+	}
+	var e models.ErrorResponse
+	err = json.NewDecoder(resp.Body).Decode(&e)
+	if err != nil {
+		return fmt.Errorf("failed to decode error payload: %s", err)
+	}
+	return fmt.Errorf("refresh failed: %s", e.Description)
 }
 
 func (c *Client) LoadCoupon(cardNumber, couponID string) error {

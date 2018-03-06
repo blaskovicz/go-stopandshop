@@ -25,6 +25,11 @@ func TestClient(t *testing.T) {
 	t.Run("Login", func(t *testing.T) {
 		err = client.Login(username, password)
 		require.NoError(t, err, "login failed")
+		require.NotNil(t, client.Token())
+		require.NotEmpty(t, client.Token().AccessToken)
+		require.NotNil(t, client.Token().RefreshToken)
+		require.NotEmpty(t, *(client.Token().RefreshToken))
+		require.NotNil(t, client.Token().ExpiresIn)
 	})
 	t.Run("ReadProfile", func(t *testing.T) {
 		require.NotNil(t, client)
@@ -66,5 +71,18 @@ func TestClient(t *testing.T) {
 
 		err = client.LoadCoupon(profile.CardNumber, "")
 		require.Error(t, err, "load coupon failed")
+	})
+	t.Run("RefreshAccessToken", func(t *testing.T) {
+		require.NotNil(t, client)
+		t1 := client.Token()
+		err := client.RefreshAccessToken()
+		require.NoError(t, err, "refresh failed")
+		require.NotNil(t, client.Token())
+		require.NotEmpty(t, client.Token().AccessToken)
+		require.NotEqual(t, t1.AccessToken, client.Token().AccessToken)
+		require.NotNil(t, client.Token().RefreshToken)
+		require.NotEmpty(t, *(client.Token().RefreshToken))
+		require.NotEqual(t, *t1.RefreshToken, *(client.Token().RefreshToken))
+		require.NotNil(t, client.Token().ExpiresIn)
 	})
 }

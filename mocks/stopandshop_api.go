@@ -160,7 +160,22 @@ func (s *StopAndShopAPI) handleLogin(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusUnauthorized, &models.ErrorResponse{ID: "unauthorized", Description: "Basic creds required"})
 		return
 	}
-	w.Write([]byte(`
-	{"access_token":"deadbeefeb2808001d182ebc24f31a44ac948ba1e20e3d7661104d8109ada6e3","token_type": "bearer","refresh_token":"deadbeef-cf80-4adb-8f3f-c51a18628cfd","expires_in":3599,"scope":"profile"}
-	`))
+
+	req.ParseForm()
+	grant := req.Form["grant_type"][0]
+	if grant == "access_token" || grant == "password" {
+		w.Write([]byte(`
+		{"access_token":"deadbeefeb2808001d182ebc24f31a44ac948ba1e20e3d7661104d8109ada6e3","token_type": "bearer","refresh_token":"deadbeef-cf80-4adb-8f3f-c51a18628cfd","expires_in":3599,"scope":"profile"}
+`))
+	} else if grant == "refresh_token" {
+		if req.Form["refresh_token"][0] != "deadbeef-cf80-4adb-8f3f-c51a18628cfd" {
+			writeError(w, http.StatusBadRequest, &models.ErrorResponse{ID: "invalid_grant", Description: fmt.Sprintf("Invalid refresh token: %s", req.Form["refresh_token"][0])})
+		} else {
+			w.Write([]byte(`
+		{"access_token":"feedbeefeb2808001d182ebc24f31a44ac948ba1e20e3d7661104d8109ada6e3","token_type": "bearer","refresh_token":"feedbeef-cf80-4adb-8f3f-c51a18628cfd","expires_in":3599,"scope":"profile"}
+`))
+		}
+	} else {
+		writeError(w, http.StatusBadRequest, &models.ErrorResponse{ID: "unsupported_grant_type", Description: fmt.Sprintf("Unsupported grant type: %s", grant)})
+	}
 }
